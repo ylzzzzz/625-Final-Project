@@ -1,0 +1,46 @@
+---
+title: "Final Report"
+author: "Nicholas Treloar, Jiamin Zou, Yalei Zhao"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assessing Predictive Performance and Gene Selection Consistency in Gene Expression Models
+
+<https://github.com/ylzzzzz/625-Final-Project>
+
+Abstract/summary
+
+Introduction
+
+-   Introduction of Dataset
+
+-   Introduction of question of interest
+
+Methods
+
+-   Introduction of Methods, Packages, and approach(es) taken
+
+LASSO
+
+Support Vector Machine
+
+Random Forest
+
+Neural Network
+
+Results
+
+Conclusion
+
+References
+
+No more than 5 pages with everything included. 
+
+Contribution Statement
+
+The contributions from each of the group member should be clearly stated (although all the students in a group will receive equal points for the final group project).
