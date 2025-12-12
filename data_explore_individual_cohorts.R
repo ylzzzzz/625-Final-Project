@@ -1,7 +1,9 @@
 library(limma)
 library(EnhancedVolcano)
+library(pheatmap)
+library(RColorBrewer)
 
-mydata = read.csv("C:/Users/trelo/Downloads/Alzheimers_Disease_cleandata.csv")
+mydata = read.csv("./data/Alzheimers_Disease_final.csv")
 gene_data = mydata[, 7:ncol(mydata)]
 clinical_data = mydata[, 1:6]
 batch_labels = clinical_data$batch_id
@@ -11,7 +13,7 @@ length(disease_labels)
 #Loop for each DEA
 # Identify unique cohorts
 unique_batches = unique(clinical_data$batch_id)
-unique_batches = unique_batches[]
+#unique_batches = unique_batches[]
 
 # Create a list to store the results for each cohort
 cohort_results_list = list()
@@ -20,39 +22,29 @@ cohort_results_list = list()
 for (cohort in unique_batches) {
   cat(paste0("\nProcessing Cohort (Batch): ", cohort, "...\n"))
   
-  # Get indices for this specific batch
+  # 1. Subset Data
   idx = which(clinical_data$batch_id == cohort)
-  
-  # Subset clinical and gene data
   sub_clinical = clinical_data[idx, ]
-  # Note: genedata_clean is Samples x Genes, so we slice rows
-  sub_gene = genedata_clean[idx, ] 
+  sub_gene = gene_data[idx, ] # Changed from genedata_clean to gene_data
   
-  # We need both Healthy (0) and Diseased (1) samples to run a comparison
+  # Check for both groups
   if (length(unique(sub_clinical$Alzheimers_Disease)) < 2) {
-    cat(paste("  [!] Skipping cohort", cohort, "- missing one of the study groups (needs both Case and Control).\n"))
+    cat(paste("  [!] Skipping cohort", cohort, "- needs both Case and Control.\n"))
     next
   }
   
-  # Run Limma (DEA)
-  # Create design matrix for THIS cohort only
-  # We do NOT include batch_id in the design because we are inside a single batch
+  # 2. Run Limma (DEA)
   design_sub = model.matrix(~ Alzheimers_Disease, data = sub_clinical)
-  
-  # Transpose sub_gene because limma expects Genes as Rows, Samples as Columns
   fit_sub = lmFit(t(sub_gene), design_sub)
   fit_sub = eBayes(fit_sub)
-  
-  # Get top table
   res_sub = topTable(fit_sub, coef = "Alzheimers_Disease", adjust = "BH", number = Inf)
   
-  # --- D. Store and Print Summary ---
+  # Store results
   cohort_results_list[[as.character(cohort)]] = res_sub
-  
   sig_count = sum(res_sub$adj.P.Val < 0.05 & abs(res_sub$logFC) > 1)
   cat(paste("  -> Finished. Significant genes found:", sig_count, "\n"))
   
-  # Generate Volcano Plot per Cohort
+  # 3. Generate Volcano Plot
   volcano_plot <- EnhancedVolcano(res_sub,
                                   lab = rownames(res_sub),
                                   x = "logFC",
@@ -64,15 +56,71 @@ for (cohort in unique_batches) {
                                   legendPosition = 'right',
                                   caption = "")
   
-  # Define the filename
-  file_path <- paste0("./figures/Cohort_", cohort, "_AD_vs_Control_volcano.png")
+  ggsave(filename = paste0("./figures/Cohort_", cohort, "_AD_vs_Control_volcano.png"), 
+         plot = volcano_plot, width = 8, height = 6, dpi = 300)
   
-  # Save it
-  ggsave(filename = file_path, 
-         plot = volcano_plot, 
-         width = 8, 
-         height = 6, 
-         dpi = 300) # High resolution for publication
+  # --- 4. Heatmap Section (FIXED) ---
+  
+  # A. Select Top Genes
+  top_n <- 20
+  top_genes <- rownames(head(res_sub, top_n))
+  
+  # B. Prepare Matrix [Genes x Samples]
+  # We transpose because pheatmap expects Genes as Rows
+  mat <- t(sub_gene[, top_genes])
+  
+  # C. Filter Zero Variance Rows (Fixes warning/scaling issues)
+  # Calculate variance for each gene (row)
+  gene_vars <- apply(mat, 1, var)
+  # Keep only genes with variance > 0
+  mat <- mat[gene_vars > 0, , drop = FALSE]
+  
+  # D. Scale (Z-score normalization)
+  # Scale works on columns, so we transpose twice: t(scale(t(mat)))
+  mat_scaled <- t(scale(t(mat)))
+  mat_scaled[is.na(mat_scaled)] <- 0 # Safety replace NAs
+  
+  # E. Prepare Annotation
+  # Force input to character to ensure factor levels match '0' and '1' safely
+  clean_disease <- as.character(sub_clinical$Alzheimers_Disease)
+  
+  annotation_col <- data.frame(
+    Disease = factor(clean_disease,
+                     levels = c("0", "1"), 
+                     labels = c("Control", "AD"))
+  )
+  
+  # CRITICAL: Match rownames of annotation to column names of matrix
+  rownames(annotation_col) <- colnames(mat_scaled)
+  
+  # F. Define Colors
+  # The list name "Disease" MUST match the column name in annotation_col "Disease"
+  ann_colors <- list(
+    Disease = c(Control = "#4daf4a", AD = "#e41a1c")
+  )
+  
+  # G. Generate Heatmap
+  heatmap_filename <- paste0("./figures/Cohort_", cohort, "_Top", top_n, "_Heatmap.png")
+  
+  tryCatch({
+    pheatmap(
+      mat_scaled,
+      annotation_col = annotation_col,
+      annotation_colors = ann_colors,
+      color = colorRampPalette(rev(brewer.pal(11, "RdBu")))(100),
+      cluster_rows = TRUE,
+      cluster_cols = TRUE,
+      show_rownames = TRUE,
+      show_colnames = FALSE, 
+      main = paste0("Cohort ", cohort, ": Top ", top_n, " DEGs"),
+      filename = heatmap_filename,
+      width = 8,
+      height = 6
+    )
+    Sys.sleep(5)
+  }, error = function(e) {
+    cat(paste("  [!] Heatmap failed for cohort", cohort, ":", e$message, "\n"))
+  })
 }
 
 
@@ -186,11 +234,19 @@ for (coh in cohorts_with_sig) {
 
 # 3. Plot Heatmap of Log Fold Changes
 # Red = Upregulated in AD, Blue = Downregulated in AD
-pheatmap(logfc_matrix,
-         main = "LogFC Comparison Across Cohorts (Sig. Genes Only)",
-         color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
-         cluster_cols = FALSE, # Keep cohort order (or TRUE to group similar cohorts)
-         cluster_rows = TRUE,
-         show_rownames = FALSE, # Hide row names if too many genes
-         na_col = "grey") # Grey if a gene was missing in a specific cohort
 
+
+
+heatmap_filename <- paste0("./figures/Cohort_", cohort, "_Top", top_n, "_Heatmap.png")
+
+tryCatch({
+  pheatmap(logfc_matrix,
+           main = "LogFC Comparison Across Cohorts (Sig. Genes Only)",
+           color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+           cluster_cols = FALSE, # Keep cohort order (or TRUE to group similar cohorts)
+           cluster_rows = TRUE,
+           show_rownames = TRUE, # Hide row names if too many genes
+           na_col = "grey") # Grey if a gene was missing in a specific cohort
+}, error = function(e) {
+  cat(paste("  [!] Heatmap failed for cohort", cohort, ":", e$message, "\n"))
+})
