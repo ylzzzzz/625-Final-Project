@@ -50,7 +50,7 @@ We analyzed the effect of cohort heterogeneity (batch effects) on the data using
 
 Before Batch Correction: Significant clustering by batch is visible, indicating technical variation.
 
-![](images/clipboard-1766360275.png)
+![](figures/UMAP_beforeBE_BatchLable.png)
 
 After Batch Correction: After adjustment, samples cluster more closely by biological condition (Disease Status) rather than batch.
 
@@ -67,3 +67,9 @@ During our initial analysis, we identified that loading the full raw dataset eve
 ![](benchmarking/bench_plot_csv_import.png)
 
 ## Contribution
+
+Nick Treloar: Generated plots for report, Analyzed individual batches for batch effect, Imported and optimized import method of dataset, Organized folders, Wrote README, Ran Random Forest and Neural Network studies
+
+Yalei Zhao: Framed study questions, work flow, and wrote the report
+
+Jiamin Zou: Implemented LASSO and SVM models for feature selection and classification; Performed batch effect correction; Conducted differential expression analyses (DEA) on merged datasets both before and after batch effect correction.
