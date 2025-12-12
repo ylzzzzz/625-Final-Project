@@ -8,56 +8,10 @@ batch_labels = clinical_data$batch_id
 disease_labels = clinical_data$Alzheimers_Disease
 length(disease_labels)
 
-# deal with NA ------------------------------------------------------------
-clean_NA = function(X, max_na = 0.5, method = c("median", "mean")) {
-  
-  method = match.arg(method)
-  
-  if (!is.matrix(X)) {
-    X = as.data.frame(X)
-  }
-  
-  na_prop = colMeans(is.na(X))
-  too_many_na = na_prop > max_na
-  if (any(too_many_na)) {
-    cat(sprintf("Removed %d variables with > %.0f%% missing values:\n", 
-                sum(too_many_na), 100 * max_na))
-    print(names(X)[too_many_na])
-    X = X[, !too_many_na, drop = FALSE]
-  }
-  
-  
-  cat("Imputing remaining NA values using", method, "...\n")
-  for (j in seq_len(ncol(X))) {
-    if (anyNA(X[[j]])) {
-      if (method == "median") {
-        fill_value = median(X[[j]], na.rm = TRUE)
-      } else if (method == "mean") {
-        fill_value = mean(X[[j]], na.rm = TRUE)
-      }
-      X[[j]][is.na(X[[j]])] = fill_value
-    }
-  }
-  
-  X = as.matrix(sapply(X, as.numeric))
-  
-  if (anyNA(X)) {
-    stop("There are still NA values after imputation!")
-  } else {
-    cat("all missing values handled successfully.\n")
-    cat(sprintf("Final dimensions: %d samples x %d features\n", nrow(X), ncol(X)))
-  }
-  
-  return(X)
-}
-
-genedata_clean = clean_NA(gene_data, max_na = 0.5, method = "median")
-
-
-
 #Loop for each DEA
 # Identify unique cohorts
 unique_batches = unique(clinical_data$batch_id)
+unique_batches = unique_batches[]
 
 # Create a list to store the results for each cohort
 cohort_results_list = list()
@@ -99,19 +53,26 @@ for (cohort in unique_batches) {
   cat(paste("  -> Finished. Significant genes found:", sig_count, "\n"))
   
   # Generate Volcano Plot per Cohort
-  # This will create a plot in your 'Plots' pane for each loop iteration
-  #print(
-  #  EnhancedVolcano(res_sub,
-  #                  lab = rownames(res_sub),
-  #                  x = "logFC",
-  #                  y = "adj.P.Val",
-  #                  title = paste0("Cohort ", cohort, ": AD vs Control"),
-  #                  subtitle = paste(sig_count, "sig genes"),
-  #                  pCutoff = 0.05,
-  #                  FCcutoff = 1,
-  #                  legendPosition = 'right',
-  #                  caption = "")
-  #)
+  volcano_plot <- EnhancedVolcano(res_sub,
+                                  lab = rownames(res_sub),
+                                  x = "logFC",
+                                  y = "adj.P.Val",
+                                  title = paste0("Cohort ", cohort, ": AD vs Control"),
+                                  subtitle = paste(sig_count, "sig genes"),
+                                  pCutoff = 0.05,
+                                  FCcutoff = 1,
+                                  legendPosition = 'right',
+                                  caption = "")
+  
+  # Define the filename
+  file_path <- paste0("./figures/Cohort_", cohort, "_AD_vs_Control_volcano.png")
+  
+  # Save it
+  ggsave(filename = file_path, 
+         plot = volcano_plot, 
+         width = 8, 
+         height = 6, 
+         dpi = 300) # High resolution for publication
 }
 
 
