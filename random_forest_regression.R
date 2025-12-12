@@ -51,6 +51,9 @@ print(rf_model)
 # Plot variable importance
 varImpPlot(rf_model, main = "Variable Importance Plot")
 
+png(filename = "RF_Base_VarImp.png", width = 800, height = 600)
+varImpPlot(rf_model, main = "Variable Importance Plot")
+dev.off()
 
 # Predict and Evaluate the Model
 predictions = predict(rf_model, newdata = x_test)
@@ -96,13 +99,13 @@ if(diff > 0.05) {
 pred_probs = predict(rf_model, newdata = x_test, type = "prob")
 
 # Extract the probability of the "positive" class (e.g., "Alzheimers")
-positive_class_prob = pred_probs[, "Alzheimers_Disease"]
+positive_class_prob = pred_probs[, "X1"]
 
 # Create ROC object
 roc_obj = roc(y_test, positive_class_prob)
 
 # Plot using ggroc (part of pROC, works with ggplot layers)
-ggroc(roc_obj, color = "darkred", size = 1.2) +
+p_roc = ggroc(roc_obj, color = "darkred", size = 1.2) +
   theme_minimal() +
   labs(
     title = paste("ROC Curve (AUC =", round(auc(roc_obj), 3), ")"),
@@ -111,6 +114,7 @@ ggroc(roc_obj, color = "darkred", size = 1.2) +
   ) +
   geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey")
 
+ggsave("RF_ROC_Curve.png", plot = p_roc, width = 6, height = 4)
 ################################################################################
 # Feature importance plot
 # Extract importance and convert to data frame
@@ -119,7 +123,7 @@ imp_df$Variable = rownames(imp_df)
 
 # Plot using ggplot 
 # Reorder by MeanDecreaseAccuracy
-ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+p_imp = ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +  # Flip coordinates for readable labels
   theme_minimal() +
@@ -130,6 +134,34 @@ ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecrease
     y = "Mean Decrease in Accuracy"
   )
 
+ggsave("RF_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
+
+################################################################################
+# Feature importance plot (Top 20 Only)
+
+# Extract importance and convert to data frame
+imp_df = as.data.frame(importance(rf_model))
+imp_df$Variable = rownames(imp_df)
+
+# Filter to just the Top 20 based on MeanDecreaseAccuracy
+top_20_imp = imp_df %>%
+  arrange(desc(MeanDecreaseAccuracy)) %>%
+  head(20)
+
+# Plot using ggplot with the filtered data
+p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip coordinates for readable labels
+  theme_minimal() +
+  labs(
+    title = "Top 20 Variable Importance (Random Forest)",
+    subtitle = "Predictors of Alzheimer's Disease",
+    x = "Predictor",
+    y = "Mean Decrease in Accuracy"
+  )
+
+# Save the plot
+ggsave("RF_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
 ################################################################################
 # Error plot
 # Extract error rates
@@ -140,7 +172,7 @@ err_df$Trees = 1:nrow(err_df)
 err_long = pivot_longer(err_df, cols = -Trees, names_to = "ErrorType", values_to = "Error")
 
 # Plot
-ggplot(err_long, aes(x = Trees, y = Error, color = ErrorType)) +
+p_err = ggplot(err_long, aes(x = Trees, y = Error, color = ErrorType)) +
   geom_line(size = 0.8) +
   theme_bw() +
   labs(
@@ -150,8 +182,7 @@ ggplot(err_long, aes(x = Trees, y = Error, color = ErrorType)) +
   ) +
   scale_color_manual(values = c("OOB" = "black", "Alzheimers_Disease.No" = "blue", "Alzheimers_Disease.Yes" = "red"))
 
-
-
+ggsave("RF_Error_Rate.png", plot = p_err, width = 7, height = 4)
 ################################################################################
 # Table statistics
 # Number of Genes (Variables) Actually Selected
