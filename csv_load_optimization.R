@@ -39,7 +39,20 @@ results <- bench::mark(
 # Re-order for specific sorting
 results$expression <- factor(results$expression, levels = c("data.table", "vroom", "7-Zip", "Base R"))
 
-# Plot results
-autoplot(results) +
-  labs(title = "Benchmark: CSV Reading Methods", y = "Method") +
-  theme_minimal()
+# 1. Unnest the 'time' column to get individual iteration data
+plot_data <- results %>%
+  unnest(cols = c(time))
+
+# 2. Create the horizontal violin plot
+ggplot(plot_data, aes(x = time, y = expression, fill = expression)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +          # The violin plot itself
+  geom_jitter(height = 0.1, size = 1, alpha = 0.5) + # Optional: Adds raw points on top
+  scale_x_time() +                                   # Auto-formats the time axis (e.g., ms, s)
+  labs(
+    title = "Benchmark: CSV Reading Methods", 
+    subtitle = "Distribution of processing times",
+    x = "Time", 
+    y = "Method"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")

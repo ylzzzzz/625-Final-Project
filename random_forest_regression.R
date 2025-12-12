@@ -6,7 +6,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(data.table)
-library(limma) # Required for removeBatchEffect
+library(limma)
 
 # Load Data
 model_data = fread("./data/Alzheimers_Disease_cleandata_final.csv")
@@ -16,13 +16,13 @@ model_data$Alzheimers_Disease = as.factor(model_data$Alzheimers_Disease)
 levels(model_data$Alzheimers_Disease) = make.names(levels(model_data$Alzheimers_Disease))
 
 
-# Perform Batch Correction (The TODO Step)
+# Perform Batch Correction
 print("--- Starting Batch Correction ---")
 
 # Identify metadata columns to exclude from the expression matrix
 metadata_cols = c("Sample_ID", "batch_id", "bio_group", "Alzheimers_Disease")
 
-# Extract the Gene Expression Matrix (Rows = Genes, Cols = Samples for limma)
+# Extract the Gene Expression Matrix
 # We subset the data to only gene columns, then transpose it
 gene_expression = as.matrix(model_data[, !metadata_cols, with = FALSE])
 gene_expression_t = t(gene_expression) 
@@ -50,9 +50,8 @@ print("Batch correction complete. Replaced raw expression data with corrected re
 model_data = batch_corrected_df
 
 
-# Standard ML Setup (Splitting)
 # Split Data into Training (70%) and Test Sets (30%)
-set.seed(123) # Good practice to set seed for reproducibility
+set.seed(123)
 split = sample.split(model_data$Alzheimers_Disease, SplitRatio = 0.70)
 
 train_set = subset(model_data, split == TRUE)
