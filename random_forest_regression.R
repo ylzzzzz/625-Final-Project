@@ -74,6 +74,13 @@ p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = 
 
 ggsave("RF_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
 
+# Save for comparing featues between models
+imp_df = as.data.frame(importance(rf_model))
+imp_df$Variable = rownames(imp_df)
+
+imp_raw = imp_df %>% 
+  select(Variable, MeanDecreaseAccuracy) %>% 
+  rename(Importance_Raw = MeanDecreaseAccuracy)
 
 # Predictions & Evaluation
 predictions = predict(rf_model, newdata = x_test)
@@ -255,6 +262,13 @@ p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = 
 
 ggsave("RF_BatchCorrected_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
 
+# Save this for comparing feature importance
+imp_df = as.data.frame(importance(rf_model)) # This is now the new model
+imp_df$Variable = rownames(imp_df)
+
+imp_corrected = imp_df %>% 
+  select(Variable, MeanDecreaseAccuracy) %>% 
+  rename(Importance_Corrected = MeanDecreaseAccuracy)
 
 # Predictions & Evaluation
 predictions = predict(rf_model, newdata = x_test)
@@ -335,3 +349,43 @@ test_rmse  = calc_class_rmse(rf_model, x_test, y_test, positive_class)
 
 print(paste("Training (Probability) RMSE:", round(train_rmse, 4)))
 print(paste("Test Set (Probability) RMSE:       ", round(test_rmse, 4)))
+
+# Compare features between both models
+library(ggrepel) # Optional, makes labels nicer
+
+# 1. Merge the two dataframes
+comparison_df = inner_join(imp_raw, imp_corrected, by = "Variable")
+
+# 2. Calculate the shift in importance
+comparison_df = comparison_df %>%
+  mutate(
+    # How much did importance change?
+    Shift = Importance_Corrected - Importance_Raw, 
+    # Label only the top features for the plot to avoid clutter
+    Label = ifelse(rank(-Importance_Raw) <= 10 | rank(-Importance_Corrected) <= 10, Variable, NA)
+  )
+
+# 3. View the top "movers" (Features that gained/lost the most importance)
+print("--- Top Importance Gainers (Better after correction) ---")
+print(head(comparison_df %>% arrange(desc(Shift)), 10))
+
+print("--- Top Importance Losers (Likely batch effects) ---")
+print(head(comparison_df %>% arrange(Shift), 10))
+
+# 4. Visualization: Scatter Plot
+p_comp = ggplot(comparison_df, aes(x = Importance_Raw, y = Importance_Corrected)) +
+  geom_point(alpha = 0.5, color = "grey50") +
+  # Highlight features that are significant in EITHER model
+  geom_point(data = subset(comparison_df, !is.na(Label)), color = "steelblue", size = 2) +
+  geom_text_repel(aes(label = Label), size = 3, max.overlaps = 20) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(
+    title = "Feature Importance Comparison",
+    subtitle = "Above Red Line = Gained Importance | Below Red Line = Lost Importance",
+    x = "Importance Before Batch Correction",
+    y = "Importance After Batch Correction"
+  )
+
+print(p_comp)
+ggsave("Feature_Comparison_Scatter.png", plot = p_comp, width = 8, height = 6)
