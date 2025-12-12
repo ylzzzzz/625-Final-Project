@@ -59,3 +59,11 @@ After Batch Correction: After adjustment, samples cluster more closely by biolog
 ## Models 
 
 The models folder contains the code for the various machine learning models built to predict disease status based on the selected genomic features. While it was initially a significant part of our proposal, we determined that the data preprocessing and batch effect analysis were more significant to report.
+
+## Benchmark
+
+During our initial analysis, we identified that loading the full raw dataset every session was a bottleneck. We optimized the data ingestion process to significantly reduce load times, ensuring a smoother workflow for downstream analysis.
+
+![](benchmarking/bench_plot_csv_import.png)
+
+## Contribution
