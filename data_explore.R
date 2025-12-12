@@ -77,6 +77,3 @@ ggplot(umap_df, aes(UMAP1, UMAP2, color = disease)) +
 
 
 
-
-
-
