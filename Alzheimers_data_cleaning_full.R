@@ -20,7 +20,7 @@ for (pkg in bioc_packages) {
 MIN_SAMPLE_SIZE = 51           # Only merge if sample size > 50
 GENE_MAP_PATH   = "gene_synonym.json"
 BASE_PATH       = "data/Alzheimers_Disease"
-USE_7ZIP        = FALSE         # Set to TRUE to compress output with 7zip
+USE_7ZIP        = TRUE         # Set to TRUE to compress output with 7zip
 
 # Define clinical columns (Keep this list accurate!)
 CLINICAL_COLS = c("Alzheimers_Disease", "Age", "Gender", "batch_id", "Sample_ID", "bio_group")
