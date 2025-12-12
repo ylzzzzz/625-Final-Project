@@ -2,6 +2,12 @@ library(data.table)
 library(vroom)
 library(archive)
 library(bench)
+library(readr)
+library(ggplot2)
+
+# Define the file paths
+csv_path <- "./data/Alzheimers_Disease_final.csv"
+zip_path <- "./data/Alzheimers_Disease_final.csv.7z"
 
 # Find 7z
 seven_zip_exe = Sys.which("7z")
@@ -14,23 +20,15 @@ if (!nzchar(seven_zip_exe)) {
   }
 }
 
-# Define the file paths
-csv_path <- "./data/Alzheimers_Disease_final.csv"
-zip_path <- "./data/Alzheimers_Disease_final.csv.7z"
-
 # Run the benchmark
 results <- bench::mark(
-  # 1. Base R
-  read_csv = read.csv(csv_path),
+  "Base R" = read.csv(csv_path),
   
-  # 2. data.table
-  fread = fread(csv_path),
+  "data.table" = fread(csv_path),
   
-  # 3. vroom
-  vroom = vroom(csv_path, show_col_types = FALSE),
+  "vroom" = vroom(csv_path, show_col_types = FALSE),
   
-  # 4. zip read
-  fread_zip <- fread(cmd = paste(shQuote(seven_zip_exe), "e -so ", zip_path)),
+  "7-Zip" = fread(cmd = paste(shQuote(seven_zip_exe), "e -so ", zip_path)),
   
   # Options
   check = FALSE,
@@ -38,5 +36,10 @@ results <- bench::mark(
   filter_gc = FALSE
 )
 
-print(results)
-plot(results)
+# Re-order for specific sorting
+results$expression <- factor(results$expression, levels = c("data.table", "vroom", "7-Zip", "Base R"))
+
+# Plot results
+autoplot(results) +
+  labs(title = "Benchmark: CSV Reading Methods", y = "Method") +
+  theme_minimal()

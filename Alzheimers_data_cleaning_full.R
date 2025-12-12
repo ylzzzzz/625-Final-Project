@@ -220,6 +220,53 @@ clean_NA = function(X, max_na = 0.5, method = c("median", "mean")) {
 
 # Run cleaning
 genedata_clean = clean_NA(gene_data, max_na = 0.5, method = "median")
+# Clean clinical data:
+# 1. Subset the actual data (fixing the immediate error)
+clinical_data_subset = final_df[, clinical_cols_final, drop = FALSE]
+
+# 2. Separate Numeric vs Categorical clinical data
+# (clean_NA is distinctively designed for numeric matrices)
+clin_num_vars = sapply(clinical_data_subset, is.numeric)
+clin_cat_vars = !clin_num_vars
+
+# 3. Clean only the numeric clinical data (e.g., Age)
+if (any(clin_num_vars)) {
+  # Subset numeric columns
+  clin_num_data = clinical_data_subset[, clin_num_vars, drop = FALSE]
+  
+  # Run your custom function
+  clin_num_clean = clean_NA(clin_num_data, max_na = 0.5, method = "median")
+  
+  # Convert back to data frame to merge later
+  clin_num_clean = as.data.frame(clin_num_clean)
+} else {
+  clin_num_clean = data.frame(row.names = rownames(clinical_data_subset))
+}
+
+# 4. Handle categorical data (Optional: fill with Mode or specific value)
+if (any(clin_cat_vars)) {
+  clin_cat_data = clinical_data_subset[, clin_cat_vars, drop = FALSE]
+  
+  # Simple imputation for categorical: Replace NA with "Unknown" or Mode
+  # Here we just ensure they aren't lost
+  clin_cat_data[is.na(clin_cat_data)] <- "Unknown" 
+} else {
+  clin_cat_data = data.frame(row.names = rownames(clinical_data_subset))
+}
+
+# 5. Recombine
+clinical_clean_final = cbind(clin_cat_data, clin_num_clean)
+
+# Verify rows match before binding (Critical for clinical+gene data)
+if (!all(rownames(clinical_clean_final) == rownames(genedata_clean))) {
+  stop("Row names do not match! Sort them before binding.")
+}
+
+# Bind the two cleaned objects directly
+final_clean_df = cbind(clinical_clean_final, as.data.frame(genedata_clean))
+
+message(sprintf("Final dimensions: %d samples x %d features", 
+                nrow(final_clean_df), ncol(final_clean_df)))
 
 # ==============================================================================
 # SAVING & 7ZIP
@@ -228,10 +275,10 @@ genedata_clean = clean_NA(gene_data, max_na = 0.5, method = "median")
 out_csv = "./data/Alzheimers_Disease_cleandata_final.csv"
 
 # Combine clean genes back with clinical data
-final_clean_df = cbind(final_df[, clinical_cols_final], as.data.frame(genedata_clean))
+final_clean_df = cbind(final_df[, clinical_clean_final], as.data.frame(genedata_clean))
 
 message(sprintf("Writing CSV to %s ...", out_csv))
-write.csv(final_clean_df, out_csv, row.names = FALSE)
+write.csv(final_clean_df, out_csv, row.names = TRUE)
 
 if (USE_7ZIP) {
   # Check if 7z is installed/in PATH

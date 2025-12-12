@@ -5,21 +5,57 @@ library(pROC)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
+library(data.table)
+library(limma) # Required for removeBatchEffect
 
-model_data = final_modeling_df_fully_cleaned
+# 1. Load Data
+# ------------------------------------------------------------------------------
+model_data = fread("./data/Alzheimers_Disease_final.csv")
 
-# Convert target variable to a factor
+# Convert target variable to a factor immediately for the design matrix
 model_data$Alzheimers_Disease = as.factor(model_data$Alzheimers_Disease)
 levels(model_data$Alzheimers_Disease) = make.names(levels(model_data$Alzheimers_Disease))
-print(paste("Target variable 'Alzheimers_Disease' converted to factor with levels:", 
-            paste(levels(model_data$Alzheimers_Disease), collapse = ", ")))
 
 
-# Remove columns that are not predictors
-cols_to_remove = c("Sample_ID", "batch_id", "bio_group")
-model_data = model_data[, !(names(model_data) %in% cols_to_remove)]
+# 2. Perform Batch Correction (The TODO Step)
+# ------------------------------------------------------------------------------
+print("--- Starting Batch Correction ---")
 
+# Identify metadata columns to exclude from the expression matrix
+metadata_cols = c("Sample_ID", "batch_id", "bio_group", "Alzheimers_Disease")
+
+# Extract the Gene Expression Matrix (Rows = Genes, Cols = Samples for limma)
+# We subset the data to only gene columns, then transpose it
+gene_expression = as.matrix(model_data[, !metadata_cols, with = FALSE])
+gene_expression_t = t(gene_expression) 
+
+# Create the Design Matrix (preserving the biological condition of interest)
+design_mat = model.matrix(~ model_data$Alzheimers_Disease)
+
+# Apply removeBatchEffect
+# We protect the "Alzheimers_Disease" signal using the design matrix
+batch_corrected_mat = removeBatchEffect(
+  x = gene_expression_t,
+  batch = model_data$batch_id,
+  design = design_mat
+)
+
+# Transpose back to (Rows = Samples, Cols = Genes) for Machine Learning
+batch_corrected_df = as.data.frame(t(batch_corrected_mat))
+
+# Re-attach the target variable
+batch_corrected_df$Alzheimers_Disease = model_data$Alzheimers_Disease
+
+print("Batch correction complete. Replaced raw expression data with corrected residuals.")
+
+# Overwrite model_data with the corrected version for the rest of the pipeline
+model_data = batch_corrected_df
+
+
+# 3. Standard ML Setup (Splitting)
+# ------------------------------------------------------------------------------
 # Split Data into Training (70%) and Test Sets (30%)
+set.seed(123) # Good practice to set seed for reproducibility
 split = sample.split(model_data$Alzheimers_Disease, SplitRatio = 0.70)
 
 train_set = subset(model_data, split == TRUE)
@@ -31,7 +67,9 @@ y_test = test_set$Alzheimers_Disease
 x_test = test_set[, !(names(test_set) %in% c("Alzheimers_Disease"))]
 
 
-# Train the Random Forest Model
+# 4. Train the Random Forest Model
+# ------------------------------------------------------------------------------
+print("--- Training Random Forest on Batch-Corrected Data ---")
 time_taken = system.time({
   rf_model = randomForest(
     x = x_train,
@@ -44,22 +82,43 @@ time_taken = system.time({
 
 print("Model training complete.")
 print(time_taken)
-
-# Print the model summary
 print(rf_model)
 
-# Plot variable importance
-varImpPlot(rf_model, main = "Variable Importance Plot")
 
-png(filename = "RF_Base_VarImp.png", width = 800, height = 600)
-varImpPlot(rf_model, main = "Variable Importance Plot")
+# 5. Variable Importance
+# ------------------------------------------------------------------------------
+# Save the base plot
+png(filename = "RF_BatchCorrected_VarImp.png", width = 800, height = 600)
+varImpPlot(rf_model, main = "Variable Importance (Batch Corrected)")
 dev.off()
 
-# Predict and Evaluate the Model
-predictions = predict(rf_model, newdata = x_test)
+# Extract importance for ggplot
+imp_df = as.data.frame(importance(rf_model))
+imp_df$Variable = rownames(imp_df)
 
-positive_class = levels(y_train)[2]
-print(paste("Using", positive_class, "as the 'positive' class for evaluation."))
+# Top 20 Plot
+top_20_imp = imp_df %>%
+  arrange(desc(MeanDecreaseAccuracy)) %>%
+  head(20)
+
+p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Top 20 Variable Importance (Batch Corrected)",
+    subtitle = "Predictors of Alzheimer's Disease",
+    x = "Predictor",
+    y = "Mean Decrease in Accuracy"
+  )
+
+ggsave("RF_BatchCorrected_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
+
+
+# 6. Predictions & Evaluation
+# ------------------------------------------------------------------------------
+predictions = predict(rf_model, newdata = x_test)
+positive_class = levels(y_train)[2] # Typically "X1" or "Yes"
 
 conf_matrix = confusionMatrix(
   data = predictions,
@@ -70,14 +129,10 @@ conf_matrix = confusionMatrix(
 print("--- Model Evaluation on Test Set ---")
 print(conf_matrix)
 
-# Get the final OOB Error rate from the model
+# Overfitting Check
 oob_error = rf_model$err.rate[nrow(rf_model$err.rate), "OOB"]
 oob_accuracy = 1 - oob_error
-
-# Get the Test Accuracy from your Confusion Matrix
 test_accuracy = conf_matrix$overall["Accuracy"]
-
-# Compare them
 diff = oob_accuracy - test_accuracy
 
 print(paste("Training (OOB) Accuracy:", round(oob_accuracy, 4)))
@@ -91,139 +146,55 @@ if(diff > 0.05) {
 }
 
 
-################################################################################
-# ROC Curve Plot
-
-
-# Predict probabilities
+# 7. ROC Curve
+# ------------------------------------------------------------------------------
 pred_probs = predict(rf_model, newdata = x_test, type = "prob")
+# Dynamic selection of positive class column (usually the 2nd column)
+positive_class_col = colnames(pred_probs)[2] 
+positive_class_prob = pred_probs[, positive_class_col]
 
-# Extract the probability of the "positive" class (e.g., "Alzheimers")
-positive_class_prob = pred_probs[, "X1"]
-
-# Create ROC object
 roc_obj = roc(y_test, positive_class_prob)
 
-# Plot using ggroc (part of pROC, works with ggplot layers)
-p_roc = ggroc(roc_obj, color = "darkred", size = 1.2) +
+p_roc = ggroc(roc_obj, color = "darkgreen", size = 1.2) + # Changed color to distinguish from non-corrected
   theme_minimal() +
   labs(
-    title = paste("ROC Curve (AUC =", round(auc(roc_obj), 3), ")"),
+    title = paste("ROC Curve (Batch Corrected) | AUC =", round(auc(roc_obj), 3)),
     x = "Specificity (1 - False Positive Rate)",
     y = "Sensitivity (True Positive Rate)"
   ) +
   geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey")
 
-ggsave("RF_ROC_Curve.png", plot = p_roc, width = 6, height = 4)
-################################################################################
-# Feature importance plot
-# Extract importance and convert to data frame
-imp_df = as.data.frame(importance(rf_model))
-imp_df$Variable = rownames(imp_df)
+ggsave("RF_BatchCorrected_ROC_Curve.png", plot = p_roc, width = 6, height = 4)
 
-# Plot using ggplot 
-# Reorder by MeanDecreaseAccuracy
-p_imp = ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +  # Flip coordinates for readable labels
-  theme_minimal() +
-  labs(
-    title = "Variable Importance (Random Forest)",
-    subtitle = "Predictors of Alzheimer's Disease",
-    x = "Predictor",
-    y = "Mean Decrease in Accuracy"
-  )
 
-ggsave("RF_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
-
-################################################################################
-# Feature importance plot (Top 20 Only)
-
-# Extract importance and convert to data frame
-imp_df = as.data.frame(importance(rf_model))
-imp_df$Variable = rownames(imp_df)
-
-# Filter to just the Top 20 based on MeanDecreaseAccuracy
-top_20_imp = imp_df %>%
-  arrange(desc(MeanDecreaseAccuracy)) %>%
-  head(20)
-
-# Plot using ggplot with the filtered data
-p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +  # Flip coordinates for readable labels
-  theme_minimal() +
-  labs(
-    title = "Top 20 Variable Importance (Random Forest)",
-    subtitle = "Predictors of Alzheimer's Disease",
-    x = "Predictor",
-    y = "Mean Decrease in Accuracy"
-  )
-
-# Save the plot
-ggsave("RF_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
-################################################################################
-# Error plot
-# Extract error rates
+# 8. Error Rate Plot
+# ------------------------------------------------------------------------------
 err_df = as.data.frame(rf_model$err.rate)
 err_df$Trees = 1:nrow(err_df)
-
-# Reshape for ggplot
 err_long = pivot_longer(err_df, cols = -Trees, names_to = "ErrorType", values_to = "Error")
 
-# Plot
 p_err = ggplot(err_long, aes(x = Trees, y = Error, color = ErrorType)) +
   geom_line(size = 0.8) +
   theme_bw() +
   labs(
-    title = "OOB and Class Error Rate vs. Number of Trees",
+    title = "OOB and Class Error Rate vs. Trees (Batch Corrected)",
     y = "Error Rate",
     color = "Metric"
-  ) +
-  scale_color_manual(values = c("OOB" = "black", "Alzheimers_Disease.No" = "blue", "Alzheimers_Disease.Yes" = "red"))
+  )
 
-ggsave("RF_Error_Rate.png", plot = p_err, width = 7, height = 4)
-################################################################################
-# Table statistics
-# Number of Genes (Variables) Actually Selected
-vars_used_count = varUsed(rf_model, count = TRUE)
-num_genes_selected = sum(vars_used_count > 0)
-
-print(paste("Total genes available:", length(vars_used_count)))
-print(paste("Number of genes actually used in the forest:", num_genes_selected))
+ggsave("RF_BatchCorrected_Error_Rate.png", plot = p_err, width = 7, height = 4)
 
 
-# Accuracy (Training vs Test)
-# Training Accuracy
-train_acc = 1 - rf_model$err.rate[nrow(rf_model$err.rate), "OOB"]
-
-# Test Accuracy
-test_acc = conf_matrix$overall["Accuracy"]
-
-print(paste("Training (OOB) Accuracy:", round(train_acc, 4)))
-print(paste("Test Set Accuracy:      ", round(test_acc, 4)))
-
-
-# RMSE (Root Mean Squared Error)
-# Function to calculate RMSE for classification
+# 9. RMSE Calculation
+# ------------------------------------------------------------------------------
 calc_class_rmse = function(model, data, actual_outcomes, positive_label) {
-  # Get probabilities for the positive class
   probs = predict(model, newdata = data, type = "prob")[, positive_label]
-  
-  # Convert actual class to 0 or 1 (1 = positive_label)
-  # We use (actual == positive) to get TRUE/FALSE, then as.numeric to get 1/0
   actual_numeric = as.numeric(actual_outcomes == positive_label)
-  
-  # Calculate RMSE
   sqrt(mean((actual_numeric - probs)^2))
 }
 
-# This assumes the second level is the positive one
-pos_class = levels(y_train)[2] 
-
-# Calculate RMSE
-train_rmse = calc_class_rmse(rf_model, x_train, y_train, pos_class)
-test_rmse  = calc_class_rmse(rf_model, x_test, y_test, pos_class)
+train_rmse = calc_class_rmse(rf_model, x_train, y_train, positive_class)
+test_rmse  = calc_class_rmse(rf_model, x_test, y_test, positive_class)
 
 print(paste("Training (Probability) RMSE:", round(train_rmse, 4)))
-print(paste("Test Set (Probability) RMSE:      ", round(test_rmse, 4)))
+print(paste("Test Set (Probability) RMSE:       ", round(test_rmse, 4)))
