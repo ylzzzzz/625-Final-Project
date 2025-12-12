@@ -116,6 +116,12 @@ Beyond batch adjustment, evaluating consistency of gene expression changes acros
 
 ## Contributions
 
+Jiamin Zou:
+
+Yalei Zhao:
+
+Nick Treloar:
+
 ## References
 
 Bulk gene expression has been widely used to characterize transcriptional changes associated with AD pathology and progression in multiple cohorts.
