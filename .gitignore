@@ -3,4 +3,6 @@
 .RData
 .Ruserdata
 /data/
-/Alzheimers_Disease/
+/Alzheimers_Disease/Alzheimers_Disease_cleandata.csv
+Alzheimers_Disease_cleandata.csv
+*.csv

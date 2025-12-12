@@ -1,4 +1,4 @@
-mydata <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
+mydata <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata.csv")
 gene_data <- mydata[, 7:ncol(mydata)]
 clinical_data <- mydata[, 1:6]
 batch_labels <- clinical_data$batch_id
@@ -16,8 +16,8 @@ length(disease_labels)
 
 library(limma)
 
-  batch_corrected <- removeBatchEffect(
-  t(gene_data),
+batch_corrected <- removeBatchEffect(
+  t(genedata_clean),
   batch = clinical_data$batch_id,
   design = model.matrix(~ clinical_data$Alzheimers_Disease)
 )
@@ -26,7 +26,7 @@ data_batch_corrected <- t(batch_corrected)
 library(uwot)
 
 set.seed(123)
-umap_result <- umap(gene_data, n_neighbors = 20, min_dist = 0.3, metric = "euclidean")
+umap_result <- umap(genedata_clean, n_neighbors = 20, min_dist = 0.3, metric = "euclidean")
 umap_df <- as.data.frame(umap_result)
 colnames(umap_df) <- c("UMAP1", "UMAP2")
 umap_df$batch <- factor(batch_labels)

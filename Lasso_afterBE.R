@@ -6,7 +6,7 @@ end_time <- Sys.time()
 time_used <- end_time - start_time
 print(time_used)
 
-genedata_clean <- mydata[, 7:ncol(mydata)]
+genedata_clean <- read.csv("Batch_corrected_expression.csv")
 clinical_data <- mydata[, 1:6]
 # train data and test data
 n <- nrow(mydata)
@@ -63,54 +63,24 @@ lasso_coef <- lasso_coef[-1, , drop = FALSE]
 sum(lasso_coef!=0)
 selected_features <- rownames(lasso_coef)[lasso_coef!=0]
 
+library(pROC) 
+roc_obj_lasso <- roc(response = as.factor(y_test),
+                     predictor = as.numeric(lasso_pred))
+roc_obj_lasso$auc
+best_cutoff <- coords(roc_obj_lasso, "best", best.method = "youden")
 
-# SVM -------------------------------------------------------------------
+pred_lasso <- ifelse(lasso_pred > best_cutoff$threshold, 1, 0)
 
+# Calculate the confusion_mat in the training and test sets
 library(caret)
-set.seed(1)
-
-X_train_afterlasso <- X_train_clean[,selected_features]
-y_train_factor <- as.factor(y_train)
-
-trainData1 <- data.frame(X_train_afterlasso,
-                         y_train = as.factor(y_train))
-
-tuneGrid <- expand.grid(C = c(0.1, 1, 10),
-                        sigma = c(0.01, 0.1, 1))
-control <- trainControl(method = "cv", number = 10)
-
-start_time <- Sys.time()
-svm_model <- train(
-  y_train ~ ., 
-  data = trainData1,
-  method = "svmRadial",
-  trControl = control,
-  tuneGrid = tuneGrid
-  #prob.model = TRUE
-)# Use the tune function for parameter optimization
-
-end_time <- Sys.time()
-
-time_used <- end_time - start_time
-print(time_used)
-
-bestModel <- svm_model$bestTune
-
-testData <- data.frame(X_test_clean[,selected_features],y_test = as.factor(y_test))
-predictions <- predict(svm_model, X_test_clean[,selected_features]) # prediction
-# predictions <- predict(svm_model, X_test_clean[,selected_features],type = "prob")
-
-library(caret)
-confusion_mat <- confusionMatrix(as.factor(predictions), as.factor(y_test), positive = "1")
+confusion_mat <- confusionMatrix(as.factor(pred_lasso), as.factor(y_test), positive = "1")
 print(confusion_mat)
-#caret::RMSE(predictions$`1`, y_test) #RSME:0.3746263
+caret::RMSE(lasso_pred, y_test)
 
 # #保存数据
-# pred_SVM <- as.data.frame(predictions)
-# objects_to_save <- pred_SVM
-# file_path <- "~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_preddata_SVM.csv"
+# objects_to_save <- pred_lasso
+# file_path <- "~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_preddata_lasso.csv"
 # save(objects_to_save, file=file_path)
-
 
 
 

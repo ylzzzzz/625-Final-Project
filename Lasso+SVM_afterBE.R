@@ -6,7 +6,7 @@ end_time <- Sys.time()
 time_used <- end_time - start_time
 print(time_used)
 
-genedata_clean <- mydata[, 7:ncol(mydata)]
+genedata_clean <- read.csv("Batch_corrected_expression.csv")
 clinical_data <- mydata[, 1:6]
 # train data and test data
 n <- nrow(mydata)
