@@ -1,6 +1,6 @@
 start_time <- Sys.time()
-
-mydata <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
+library(data.table)
+mydata <- fread("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
 dim(mydata)
 end_time <- Sys.time()
 time_used <- end_time - start_time
@@ -43,7 +43,7 @@ grid <- 10^seq(10, -2, length = 100)
 # fit
 start_time <- Sys.time()
 
-lasso_mod <- glmnet(X_train_clean, y_train, alpha = 1, lambda = grid,family = "binomial")
+lasso_mod <- glmnet(as.matrix(X_train), as.matrix(y_train), alpha = 1, lambda = grid,family = "binomial")
 
 end_time <- Sys.time()
 time_used <- end_time - start_time
@@ -51,7 +51,7 @@ print(time_used)
 
 plot(lasso_mod)
 # select parameter
-cv_out_lasso <- cv.glmnet(as.matrix(X_train_clean), y_train, alpha = 1)
+cv_out_lasso <- cv.glmnet(as.matrix(X_train), as.matrix(y_train), alpha = 1)
 plot(cv_out_lasso)
 bestlam_lasso <- cv_out_lasso$lambda.min
 bestlam_lasso
@@ -63,22 +63,24 @@ lasso_coef <- lasso_coef[-1, , drop = FALSE]
 sum(lasso_coef!=0)
 selected_features <- rownames(lasso_coef)[lasso_coef!=0]
 
-library(pROC) 
-roc_obj_lasso <- roc(response = as.factor(y_test),
-                     predictor = as.numeric(lasso_pred))
-roc_obj_lasso$auc
-best_cutoff <- coords(roc_obj_lasso, "best", best.method = "youden")
-
-pred_lasso <- ifelse(lasso_pred > best_cutoff$threshold, 1, 0)
-
-# Calculate the confusion_mat in the training and test sets
-library(caret)
-confusion_mat <- confusionMatrix(as.factor(pred_lasso), as.factor(y_test), positive = "1")
-print(confusion_mat)
-caret::RMSE(lasso_pred, y_test)
+# library(pROC) 
+# roc_obj_lasso <- roc(response = as.factor(y_test),
+#                      predictor = as.numeric(lasso_pred))
+# roc_obj_lasso$auc
+# best_cutoff <- coords(roc_obj_lasso, "best", best.method = "youden")
+# 
+# pred_lasso <- ifelse(lasso_pred > best_cutoff$threshold, 1, 0)
+# 
+# # Calculate the confusion_mat in the training and test sets
+# library(caret)
+# confusion_mat <- confusionMatrix(as.factor(pred_lasso), as.factor(y_test), positive = "1")
+# print(confusion_mat)
+# caret::RMSE(lasso_pred, y_test)
 
 # keep data
 # objects_to_save <- pred_lasso
 # file_path <- "~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_preddata_lasso.csv"
 # save(objects_to_save, file=file_path)
 LassoResult_Before <- selected_features
+
+#length(intersect(LassoResult_Before,LassoResult_After))/length(union(LassoResult_Before,LassoResult_After))

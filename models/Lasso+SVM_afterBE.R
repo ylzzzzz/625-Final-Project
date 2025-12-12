@@ -1,23 +1,21 @@
 start_time <- Sys.time()
-
-mydata <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
+library(data.table)
+mydata <- fread("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
 dim(mydata)
 end_time <- Sys.time()
 time_used <- end_time - start_time
 print(time_used)
 
-genedata_clean <- read.csv("Batch_corrected_expression.csv")
+genedata_clean <- fread("~/Documents/DNA/2025Fall/Biostat625/Final/Batch_corrected_expression.csv")
 clinical_data <- mydata[, 1:6]
 # train data and test data
 n <- nrow(mydata)
 train_index <- sample(seq_len(n), size = 0.7 * n)
 
-train_data <- mydata[train_index, ]
-test_data  <- mydata[-train_index, ]
-X_train <- train_data[, 7:ncol(mydata)]
-X_test <- test_data[, 7:ncol(mydata)]
-y_train <- train_data[, 2]
-y_test <- test_data[, 2]
+X_train <- genedata_clean[train_index,-1 ]
+X_test  <- genedata_clean[-train_index, -1]
+y_train <- unlist(clinical_data[train_index, 2])
+y_test <- unlist(clinical_data[-train_index, 2])
 
 # 检查划分结果
 nrow(train_data)
@@ -29,12 +27,6 @@ any(missing_values)
 missing_values <- is.na(train_data)
 any(missing_values)
 
-
-X_train_clean <- genedata_clean[train_index, ]
-X_test_clean  <- genedata_clean[-train_index, ]
-y_train <- train_data[, 2]
-y_test <- test_data[, 2]
-
 #------------------lasso----------------------------
 
 library(glmnet)
@@ -43,7 +35,7 @@ grid <- 10^seq(10, -2, length = 100)
 # fit
 start_time <- Sys.time()
 
-lasso_mod <- glmnet(X_train_clean, y_train, alpha = 1, lambda = grid,family = "binomial")
+lasso_mod <- glmnet(as.matrix( X_train), y_train, alpha = 1, lambda = grid,family = "binomial")
 
 end_time <- Sys.time()
 time_used <- end_time - start_time
@@ -51,12 +43,12 @@ print(time_used)
 
 plot(lasso_mod)
 # select parameter
-cv_out_lasso <- cv.glmnet(as.matrix(X_train_clean), y_train, alpha = 1)
+cv_out_lasso <- cv.glmnet(as.matrix(X_train), y_train, alpha = 1)
 plot(cv_out_lasso)
 bestlam_lasso <- cv_out_lasso$lambda.min
 bestlam_lasso
 # prediction
-lasso_pred <- predict(lasso_mod, s = bestlam_lasso, newx = as.matrix(X_test_clean),type = "response")
+lasso_pred <- predict(lasso_mod, s = bestlam_lasso, newx = as.matrix(X_test),type = "response")
 coef <- predict(lasso_mod , type = "coefficients", s = bestlam_lasso)
 lasso_coef <- as.matrix(coef)
 lasso_coef <- lasso_coef[-1, , drop = FALSE]
@@ -69,7 +61,7 @@ selected_features <- rownames(lasso_coef)[lasso_coef!=0]
 library(caret)
 set.seed(1)
 
-X_train_afterlasso <- X_train_clean[,selected_features]
+X_train_afterlasso <- as.data.frame(X_train)[,selected_features]
 y_train_factor <- as.factor(y_train)
 
 trainData1 <- data.frame(X_train_afterlasso,
@@ -96,8 +88,8 @@ print(time_used)
 
 bestModel <- svm_model$bestTune
 
-testData <- data.frame(X_test_clean[,selected_features],y_test = as.factor(y_test))
-predictions <- predict(svm_model, X_test_clean[,selected_features]) # prediction
+testData <- data.frame(as.data.frame(X_test)[,selected_features],y_test = as.factor(y_test))
+predictions <- predict(svm_model, as.data.frame(X_test)[,selected_features]) # prediction
 # predictions <- predict(svm_model, X_test_clean[,selected_features],type = "prob")
 
 library(caret)

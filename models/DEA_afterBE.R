@@ -1,5 +1,6 @@
-mydata <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv",row.names = 1)
-gene_data <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Batch_corrected_expression.csv",row.names = 1)
+library(data.table)
+mydata <- fread("~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_cleandata_final.csv")
+gene_data <- fread("~/Documents/DNA/2025Fall/Biostat625/Final/Batch_corrected_expression.csv")
 clinical_data <- mydata[, 1:6]
 batch_labels <- clinical_data$batch_id
 disease_labels <- clinical_data$Alzheimers_Disease
