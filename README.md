@@ -10,7 +10,7 @@ In this study, we investigate the impact of this heterogeneity on differential g
 
 2.  Evaluated the impact of batch effects by conducting pooled analyses (with and without cohort adjustment).
 
-3.  Assessed the robustness of gene–disease associations across cohorts.
+3.  Assessed the performance of feature selection for pooled dataset.
 
 Our results highlight the importance of accounting for cross-cohort heterogeneity when integrating multi-cohort gene expression data.
 
