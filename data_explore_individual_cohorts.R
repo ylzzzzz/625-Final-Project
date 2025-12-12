@@ -117,7 +117,10 @@ for (cohort in unique_batches) {
       width = 8,
       height = 6
     )
+<<<<<<< HEAD
     Sys.sleep(5)
+=======
+>>>>>>> 00437029962fcac513db36e1513d1eb776c0198d
   }, error = function(e) {
     cat(paste("  [!] Heatmap failed for cohort", cohort, ":", e$message, "\n"))
   })
