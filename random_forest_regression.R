@@ -8,17 +8,15 @@ library(tidyr)
 library(data.table)
 library(limma) # Required for removeBatchEffect
 
-# 1. Load Data
-# ------------------------------------------------------------------------------
-model_data = fread("./data/Alzheimers_Disease_final.csv")
+# Load Data
+model_data = fread("./data/Alzheimers_Disease_cleandata_final.csv")
 
 # Convert target variable to a factor immediately for the design matrix
 model_data$Alzheimers_Disease = as.factor(model_data$Alzheimers_Disease)
 levels(model_data$Alzheimers_Disease) = make.names(levels(model_data$Alzheimers_Disease))
 
 
-# 2. Perform Batch Correction (The TODO Step)
-# ------------------------------------------------------------------------------
+# Perform Batch Correction (The TODO Step)
 print("--- Starting Batch Correction ---")
 
 # Identify metadata columns to exclude from the expression matrix
@@ -52,8 +50,7 @@ print("Batch correction complete. Replaced raw expression data with corrected re
 model_data = batch_corrected_df
 
 
-# 3. Standard ML Setup (Splitting)
-# ------------------------------------------------------------------------------
+# Standard ML Setup (Splitting)
 # Split Data into Training (70%) and Test Sets (30%)
 set.seed(123) # Good practice to set seed for reproducibility
 split = sample.split(model_data$Alzheimers_Disease, SplitRatio = 0.70)
@@ -67,14 +64,13 @@ y_test = test_set$Alzheimers_Disease
 x_test = test_set[, !(names(test_set) %in% c("Alzheimers_Disease"))]
 
 
-# 4. Train the Random Forest Model
-# ------------------------------------------------------------------------------
+# Train the Random Forest Model
 print("--- Training Random Forest on Batch-Corrected Data ---")
 time_taken = system.time({
   rf_model = randomForest(
     x = x_train,
     y = y_train,
-    ntree = 1000,
+    ntree = 200,
     importance = TRUE,
     na.action = na.omit
   )
@@ -85,8 +81,7 @@ print(time_taken)
 print(rf_model)
 
 
-# 5. Variable Importance
-# ------------------------------------------------------------------------------
+# Variable Importance
 # Save the base plot
 png(filename = "RF_BatchCorrected_VarImp.png", width = 800, height = 600)
 varImpPlot(rf_model, main = "Variable Importance (Batch Corrected)")
@@ -115,8 +110,7 @@ p_imp = ggplot(top_20_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = 
 ggsave("RF_BatchCorrected_Feature_Importance.png", plot = p_imp, width = 7, height = 5)
 
 
-# 6. Predictions & Evaluation
-# ------------------------------------------------------------------------------
+# Predictions & Evaluation
 predictions = predict(rf_model, newdata = x_test)
 positive_class = levels(y_train)[2] # Typically "X1" or "Yes"
 
@@ -146,8 +140,7 @@ if(diff > 0.05) {
 }
 
 
-# 7. ROC Curve
-# ------------------------------------------------------------------------------
+# ROC Curve
 pred_probs = predict(rf_model, newdata = x_test, type = "prob")
 # Dynamic selection of positive class column (usually the 2nd column)
 positive_class_col = colnames(pred_probs)[2] 
@@ -167,8 +160,7 @@ p_roc = ggroc(roc_obj, color = "darkgreen", size = 1.2) + # Changed color to dis
 ggsave("RF_BatchCorrected_ROC_Curve.png", plot = p_roc, width = 6, height = 4)
 
 
-# 8. Error Rate Plot
-# ------------------------------------------------------------------------------
+# Error Rate Plot
 err_df = as.data.frame(rf_model$err.rate)
 err_df$Trees = 1:nrow(err_df)
 err_long = pivot_longer(err_df, cols = -Trees, names_to = "ErrorType", values_to = "Error")
@@ -185,8 +177,7 @@ p_err = ggplot(err_long, aes(x = Trees, y = Error, color = ErrorType)) +
 ggsave("RF_BatchCorrected_Error_Rate.png", plot = p_err, width = 7, height = 4)
 
 
-# 9. RMSE Calculation
-# ------------------------------------------------------------------------------
+# RMSE Calculation
 calc_class_rmse = function(model, data, actual_outcomes, positive_label) {
   probs = predict(model, newdata = data, type = "prob")[, positive_label]
   actual_numeric = as.numeric(actual_outcomes == positive_label)
