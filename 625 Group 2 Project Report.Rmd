@@ -120,7 +120,7 @@ Jiamin Zou:
 
 Yalei Zhao:
 
-Nick Treloar:
+Nick Treloar: Generated plots for report, Analyzed individual batches for batch effect, Imported and optimized import method of dataset, Organized folders, Ran Random Forest and Neural Network studies
 
 ## References
 
