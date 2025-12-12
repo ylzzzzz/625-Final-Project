@@ -6,7 +6,7 @@ end_time <- Sys.time()
 time_used <- end_time - start_time
 print(time_used)
 
-genedata_clean <- read.csv("Batch_corrected_expression.csv")
+genedata_clean <- read.csv("~/Documents/DNA/2025Fall/Biostat625/Final/Batch_corrected_expression.csv")
 clinical_data <- mydata[, 1:6]
 # train data and test data
 n <- nrow(mydata)
@@ -77,10 +77,11 @@ confusion_mat <- confusionMatrix(as.factor(pred_lasso), as.factor(y_test), posit
 print(confusion_mat)
 caret::RMSE(lasso_pred, y_test)
 
-# #保存数据
+# keep data
 # objects_to_save <- pred_lasso
 # file_path <- "~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_preddata_lasso.csv"
 # save(objects_to_save, file=file_path)
 
+LassoResult_After <- selected_features
 
 

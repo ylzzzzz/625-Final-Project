@@ -77,10 +77,8 @@ confusion_mat <- confusionMatrix(as.factor(pred_lasso), as.factor(y_test), posit
 print(confusion_mat)
 caret::RMSE(lasso_pred, y_test)
 
-# #保存数据
+# keep data
 # objects_to_save <- pred_lasso
 # file_path <- "~/Documents/DNA/2025Fall/Biostat625/Final/Alzheimers_Disease_preddata_lasso.csv"
 # save(objects_to_save, file=file_path)
-
-
-
+LassoResult_Before <- selected_features

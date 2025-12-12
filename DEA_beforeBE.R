@@ -40,7 +40,7 @@ p = EnhancedVolcano(res,
   
 
 
-final_grid = plot_grid(plotlist = p, ncol = , labels = "AUTO")
+final_grid = plot_grid(plotlist = p, ncol = )
 print(final_grid)
   
 
