@@ -44,7 +44,7 @@ library(data.table)
 df = fread("./data/Alzheimers_Disease_final.csv")
 ```
 
-## Batch Effect Analysis 
+## Batch Effect Analysis
 
 We analyzed the effect of cohort heterogeneity (batch effects) on the data using UMAP projections. The visualizations below demonstrate the data structure before and after batch correction.
 
@@ -56,7 +56,7 @@ After Batch Correction: After adjustment, samples cluster more closely by biolog
 
 ![](figures/UMAP_afterBE_BatchLable.png)
 
-## Models 
+## Models
 
 The models folder contains the code for the various machine learning models built to predict disease status based on the selected genomic features. While it was initially a significant part of our proposal, we determined that the data preprocessing and batch effect analysis were more significant to report.
 
